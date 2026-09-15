@@ -1,0 +1,409 @@
+# Managing JATOS API Credentials
+
+`jatosr` never takes a token as a function argument in normal use. Your
+API token goes into the credential store of your operating system, the
+server’s URL goes into a small configuration file, and every function
+reaches both through
+[`jatos_connection()`](https://www.gfrischkorn.org/jatosr/reference/jatos_connection.md).
+Several accounts or servers are kept apart as named profiles. This page
+explains where a token is kept, in which order the package looks for
+one, and why nothing the package writes can ever contain it.
+
+None of the chunks are evaluated when the package is built; the output
+was produced against the package’s mocked test server with a fake token.
+
+## Create a token in JATOS
+
+In the JATOS web interface open the user menu, choose *API tokens*, and
+create a personal access token. Give it a name that says where it will
+be used (`analysis-laptop`, `ci-runner`) and an expiry if the server
+offers one. JATOS shows the token once; it starts with `jap_`.
+
+A JATOS token carries no roles and no scopes: it can do whatever the
+account it belongs to can do. For anything that runs unattended, make a
+dedicated API account, add it only to the studies it needs, and give its
+token an expiry.
+
+## Store it once
+
+``` r
+
+library(jatosr)
+jatos_set_credentials("https://jatos.example.org")
+```
+
+With no `token` argument the function prompts for it, with hidden input,
+so the token is never typed into a script or a console history. It then:
+
+    #> v Stored the token of profile "default" in the "macos" credential store.
+    #> i The host went to
+    #>   '~/Library/Application Support/org.R-project.R/R/jatosr/profiles.json'.
+    #> v Token "analysis-laptop" for "researcher@example.org" accepted by
+    #>   <https://jatos.example.org> (no expiry).
+
+Two different places, on purpose:
+
+- **The token** goes into the credential store of the operating system,
+  through the [keyring](https://keyring.r-lib.org/) package: the macOS
+  keychain, the Windows credential store, the Secret Service on Linux.
+  It is encrypted at rest and the package never writes it anywhere else.
+- **The host** is not a secret, so it goes into `profiles.json` under
+  `tools::R_user_dir("jatosr", "config")`, the location R sanctions for
+  user configuration. You can read it, and
+  [`jatos_list_profiles()`](https://www.gfrischkorn.org/jatosr/reference/jatos_list_profiles.md)
+  can read it without touching the credential store at all.
+
+The token is not kept in a file such as `~/.Renviron`, because a file
+like that is plain text: it is picked up by OneDrive, iCloud and
+Dropbox, it travels in backups and in copied home directories, and a
+project-level one reaches git more often than anyone intends.
+
+Where [`tools::R_user_dir()`](https://rdrr.io/r/tools/userdir.html) is
+not a good place for the configuration file — a container whose home
+directory is read-only, a machine several people log in to — set the
+environment variable `JATOSR_CONFIG_DIR` to another directory. Every
+function of the package then reads and writes `profiles.json` there. It
+holds profile names and hosts only, so the directory needs to be
+writable, and private only as far as your hosts are.
+
+The last line is a check against the server, once, so that a token that
+was pasted wrong fails here rather than three functions later.
+`check = FALSE` skips it; a failed check is a warning, and the token is
+stored anyway, so you can set credentials while the server is down.
+
+## Where the package looks for a token
+
+In this order, first hit wins:
+
+1.  an explicit `token =` argument to
+    [`jatos_connection()`](https://www.gfrischkorn.org/jatosr/reference/jatos_connection.md);
+2.  the environment variable `JATOS_TOKEN`, or `JATOS_TOKEN_<PROFILE>`
+    for a named profile;
+3.  a token already read in this session;
+4.  the credential store;
+5.  a prompt, if the session is interactive.
+
+The host is resolved the same way, without the last two steps:
+`JATOS_HOST` (or `JATOS_HOST_<PROFILE>`), then `profiles.json`.
+
+[`jatos_credentials_sitrep()`](https://www.gfrischkorn.org/jatosr/reference/jatos_credentials_sitrep.md)
+says which of these each profile is actually using, without printing a
+token:
+
+``` r
+
+jatos_credentials_sitrep()
+```
+
+    #> -- jatosr credentials ----------------------------------------------------
+    #> * Packages: jatosr 0.1.0, keyring 1.4.1
+    #> * R version 4.6.1 (2026-06-24)
+    #> * Operating system: macOS Tahoe 26.6.2
+    #> * Credential store: "macos"
+    #> * Profile configuration:
+    #>   '~/Library/Application Support/org.R-project.R/R/jatosr/profiles.json'
+    #>
+    #> -- Profile "default" (active) --
+    #>
+    #> * Host: <https://jatos.example.org> (from config)
+    #> * Token: from the credential store
+    #>
+    #> -- Profile "lab_admin" --
+    #>
+    #> * Host: <https://jatos.example.org> (from config)
+    #> * Token: from the credential store
+
+The first lines name the versions and, for a package installed from
+GitHub, the commit, so the report can go into a bug report as it is.
+Replace the host first if your server is not public.
+
+## Continuous integration, containers and clusters
+
+Step 2 is there for machines that have no credential store, and it is a
+supported path rather than a fallback. On GitHub Actions, on a cluster
+node, or in a Docker image, put the token in the platform’s own secret
+store and let it arrive as an environment variable:
+
+``` yaml
+env:
+  JATOS_HOST: https://jatos.example.org
+  JATOS_TOKEN: ${{ secrets.JATOS_TOKEN }}
+```
+
+The package reads it and needs nothing else.
+[`jatos_set_credentials()`](https://www.gfrischkorn.org/jatosr/reference/jatos_set_credentials.md)
+is not called there at all — it would refuse, because there is nowhere
+durable to store anything.
+
+Because an environment variable wins over the credential store, a
+variable left over on your own machine will quietly shadow a token you
+have just stored. The package warns once per session when that happens,
+and
+[`jatos_credentials_sitrep()`](https://www.gfrischkorn.org/jatosr/reference/jatos_credentials_sitrep.md)
+marks it.
+
+## Headless machines
+
+jatosr does not pick a credential store itself; it uses the one
+[`keyring::default_backend()`](https://keyring.r-lib.org/reference/backends.html)
+returns. That is the Windows credential store on Windows and the
+keychain on macOS. On Linux it is the Secret Service (GNOME Keyring,
+KWallet) when two things hold: `keyring` was built with libsecret, and a
+desktop session provides the service. `keyring` lists libsecret as an
+optional system requirement: `libsecret-1-dev` on Debian and Ubuntu,
+`libsecret-devel` on Fedora. Install it before installing `keyring` from
+source, or reinstall `keyring` afterwards. Setting `R_KEYRING_BACKEND`
+chooses a backend by hand.
+
+Where no system keyring exists, as on a Linux server without a desktop
+session, `keyring` falls back to keeping secrets in environment
+variables for the life of the session. Storing there would look as
+though it had worked and be gone at the next start of R, so
+[`jatos_set_credentials()`](https://www.gfrischkorn.org/jatosr/reference/jatos_set_credentials.md)
+refuses:
+
+    #> Error in `jatos_set_credentials()`:
+    #> ! No persistent credential store is available on this system.
+    #> i Set `JATOS_TOKEN` through your platform instead, on a server or in CI.
+    #> i Or create an encrypted file keyring once with
+    #>   `keyring::backend_file$new()$keyring_create("system")`.
+
+Both ways out are real. The environment variable is the simpler one. The
+second command makes an encrypted file keyring, unlocked by a password
+you choose. From then on `keyring` selects the file backend by itself
+(from `keyring` 1.4.0 on it does so only once that keyring exists), and
+the package works normally. A locked file keyring still lists its
+entries, but a token cannot be read from it without the password, so a
+script unlocks it first with `keyring::keyring_unlock("system")`. Plain
+[`keyring::keyring_create()`](https://keyring.r-lib.org/reference/has_keyring_support.html)
+does not work here: it runs on the environment-variable backend, which
+has no keyrings.
+
+If the store refuses the token, for example a Secret Service that stays
+locked, the profile’s host is taken out of the configuration again, so a
+failed call leaves no profile with a host and no token.
+
+## What the package checks
+
+``` r
+
+jatos_has_credentials()
+#> [1] TRUE
+```
+
+`TRUE` means a host and a token can be found, not that the token works.
+It retrieves nothing and asks the server nothing. For the real answer,
+[`jatos_token_info()`](https://www.gfrischkorn.org/jatosr/reference/jatos_token_info.md)
+calls the server.
+
+Without credentials the error says which variable was looked for and
+what to run:
+
+    #> Error in `jatos_connection()`:
+    #> ! No `host` supplied and the `JATOS_HOST` environment variable is not set.
+    #> i Run `jatosr::jatos_set_credentials()` once to store it.
+    #> i Or set the `JATOS_HOST` environment variable.
+
+A token that does not start with `jap_` is stored, with a warning,
+because the most common mistake is to copy the token’s *name* out of the
+JATOS table instead of the token:
+
+    #> Warning message:
+    #> JATOS personal access tokens usually start with `jap_`.
+    #> i Check that you copied the token, not its name.
+
+## The connection holds no token
+
+``` r
+
+conn <- jatos_connection()
+conn
+```
+
+    #> <jatos_connection>
+    #>   profile: default
+    #>   host:    https://jatos.example.org
+    #>   api:     https://jatos.example.org/jatos/api/v1
+    #>   token:   from the credential store
+
+There is no token in that object to print.
+[`str()`](https://rdrr.io/r/utils/str.html) shows everything it holds:
+
+``` r
+
+str(conn)
+```
+
+    #> List of 6
+    #>  $ profile   : chr "default"
+    #>  $ host      : chr "https://jatos.example.org"
+    #>  $ api_url   : chr "https://jatos.example.org/jatos/api/v1"
+    #>  $ id        : chr "cn_84799_2"
+    #>  $ auth_from : chr "keyring"
+    #>  $ user_agent: chr "jatosr/0.1.0"
+    #>  - attr(*, "class")= chr "jatos_connection"
+
+`id` is an opaque label for this session; `auth_from` says which of the
+five steps above supplied the token. The token itself stays in an
+environment the package owns, for this session only, and is fetched
+inside the one function that builds an HTTP request.
+
+This is what makes a connection safe to keep:
+
+``` r
+
+saveRDS(conn, "conn.rds")
+# the file holds the profile name and the host, and no token
+```
+
+[`saveRDS()`](https://rdrr.io/r/base/readRDS.html),
+[`save.image()`](https://rdrr.io/r/base/save.html), an `.RData` written
+at the end of a session, a knitr cache, a targets store — none of them
+can write a token this way, because there is none in the object. A
+connection read back in another session carries a dead `id`, looks its
+profile up again, and works if that profile is still stored.
+
+The package’s test suite asserts this rather than trusting it: every
+file the package writes — the cache, the data file, the metadata
+sidecar, the provenance record, exported archives, `profiles.json` — is
+scanned byte by byte for a token, as is every message, warning and error
+raised during a full run.
+
+The guarantee is about this package’s objects. A token you assign to a
+variable of your own is an ordinary string, and is saved like one.
+
+## Expiring tokens
+
+[`jatos_token_info()`](https://www.gfrischkorn.org/jatosr/reference/jatos_token_info.md)
+reports what the server knows about the token in use:
+
+``` r
+
+jatos_token_info()[, c("name", "expires", "expired")]
+```
+
+    #> # A tibble: 1 x 3
+    #>   name            expires             expired
+    #>   <chr>           <dttm>              <lgl>
+    #> 1 analysis-laptop 2025-08-30 12:00:00 FALSE
+
+Once that call has seen an expiry within seven days, the next
+[`jatos_connection()`](https://www.gfrischkorn.org/jatosr/reference/jatos_connection.md)
+of the session warns, once:
+
+    #> Warning message:
+    #> The token of profile "default" expired on 2025-08-30 12:00 UTC.
+    #> i Create a new token in JATOS and store it with `jatos_set_credentials()`.
+
+Servers that never expire tokens report no expiry at all, and nothing is
+warned about.
+
+## Several accounts or servers: profiles
+
+A profile is a name for one host-and-token pair. The default profile is
+called `default` and needs no name anywhere.
+
+``` r
+
+jatos_set_credentials("https://jatos.example.org", profile = "lab_admin")
+```
+
+    #> v Stored the token of profile "lab_admin" in the "macos" credential store.
+    #> i The host went to
+    #>   '~/Library/Application Support/org.R-project.R/R/jatosr/profiles.json'.
+    #> i Use it with `jatos_connection("lab_admin")` or set `JATOS_PROFILE` to
+    #>   "lab_admin".
+
+The profile name is the username of the credential store entry, so
+profiles and entries map one to one and you can see them in Keychain
+Access or seahorse under the service `jatosr`.
+
+Use one either per call or for the whole session:
+
+``` r
+
+admin <- jatos_connection("lab_admin")
+jatos_studies(conn = admin)
+
+Sys.setenv(JATOS_PROFILE = "lab_admin")   # or set it in ~/.Renviron
+jatos_studies()                           # now uses lab_admin
+```
+
+[`jatos_list_profiles()`](https://www.gfrischkorn.org/jatosr/reference/jatos_list_profiles.md)
+shows what exists, from all three places, and never a token:
+
+``` r
+
+jatos_list_profiles()
+```
+
+    #> # A tibble: 3 x 5
+    #>   profile   host                        has_token active auth_from
+    #>   <chr>     <chr>                       <lgl>     <lgl>  <chr>
+    #> 1 default   https://jatos.example.org   TRUE      TRUE   keyring
+    #> 2 lab_admin https://jatos.example.org   TRUE      FALSE  keyring
+    #> 3 other_lab https://jatos.other-lab.org TRUE      FALSE  keyring
+
+## Removing a profile
+
+``` r
+
+jatos_remove_credentials(profile = "other_lab")
+```
+
+    #> ! About to remove the credentials of profile "other_lab" from the "macos"
+    #>   credential store.
+    #> i A token that is stored nowhere else cannot be recovered; JATOS shows it
+    #>   once.
+    #>
+    #> 1: Yes, remove them
+    #> 2: No, keep them
+    #>
+    #> Selection: 1
+    #> v Deleted the token of profile "other_lab" from the "macos" credential
+    #>   store.
+    #> v Removed its host from
+    #>   '~/Library/Application Support/org.R-project.R/R/jatosr/profiles.json'.
+    #> i The token itself is still valid; delete it in the JATOS user menu under
+    #>   API tokens to revoke it.
+
+Pass `confirm = FALSE` in a script. Calling it again says there was
+nothing to do rather than failing:
+
+    #> i Nothing to remove: profile "other_lab" is not in the credential store or
+    #>   the configuration.
+    #> i `jatos_list_profiles()` shows what is set.
+
+Two situations draw a warning: an environment variable still defines the
+profile, in which case it is still in use and will be back at the next
+start of R if an `.Renviron` sets it; and `JATOS_PROFILE` still names
+the profile you just removed, in which case every call without a `conn`
+fails until you unset it.
+
+## What this protects against, and what it does not
+
+The credential store is unlocked when you log in. The token is encrypted
+on disk, and it is readable by any process running as you.
+
+- **Protected:** cloud sync, backups, shared folders, a copied home
+  directory, an accidental commit, a screen-shared script, a workspace
+  someone else opens.
+- **Not protected:** code running in your own R session, or as your
+  user, that goes looking for it.
+
+If you want more than that, make a keyring of its own with a password
+you set and lock it when you are not using it
+([`keyring::keyring_create()`](https://keyring.r-lib.org/reference/has_keyring_support.html),
+[`keyring::keyring_lock()`](https://keyring.r-lib.org/reference/has_keyring_support.html)).
+
+## Revoking
+
+Removing a profile deletes your copy of the token. It does not revoke
+it: the token keeps working for anyone who has it. A token that has been
+pasted somewhere it should not be (a chat, a committed file, a rendered
+report) is revoked in the same JATOS menu that created it. Then either
+store a new one with
+[`jatos_set_credentials()`](https://www.gfrischkorn.org/jatosr/reference/jatos_set_credentials.md),
+with the same `profile` if it was not the default, which replaces the
+old one, or drop the profile altogether with
+[`jatos_remove_credentials()`](https://www.gfrischkorn.org/jatosr/reference/jatos_remove_credentials.md).
