@@ -1,0 +1,680 @@
+---
+title: "Get started with jatosr"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Get started with jatosr}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+This vignette walks through the whole pipeline once: check the token, find the study, fetch result metadata, drop the runs that do not belong in the dataset, download the result files into a local cache, pull a participant id out of every file, read the jsPsych trials into one tibble with the metadata of each run joined, and save that dataset to disk together with the study-result table and a record of what produced it. It ends with study codes.
+
+Every chunk below talks to a JATOS server, so none of them is evaluated when the package is built. The output shown was produced by running the same calls against the package's test fixtures, a small mocked server with two studies and six component results, so the numbers are small but real.
+
+```{r}
+library(jatosr)
+```
+
+## Credentials
+
+`jatos_set_credentials()` stores the personal access token in the credential store of your operating system and the server URL in a configuration file; both are picked up in every later session. Where a platform supplies them — CI, a container, a cluster job — `JATOS_HOST` and `JATOS_TOKEN` are read instead and take precedence. `jatos_credentials_sitrep()` says which of those a profile is using. See `vignette("credentials")` for the details and for why a connection object holds no token at all.
+
+```{r}
+jatos_token_info()
+#> # A tibble: 1 x 9
+#>   token_id name         username user_id created             expires
+#>      <int> <chr>        <chr>      <int> <dttm>              <dttm>
+#> 1        7 analysis-la~ researc~       3 2025-08-24 01:46:40 NA
+#> # i 3 more variables: expired <lgl>, active <lgl>, roles <list>
+```
+
+A wrong token gives a 401 error with the server's message; a wrong host a 404 or, on some installations, an HTML login page, which the package reports as an authentication failure rather than trying to parse it.
+
+## Find the study and its batches
+
+`jatos_studies()` lists every study the token can see. Components and
+batches come along as list columns of tibbles.
+
+```{r}
+studies <- jatos_studies()
+studies[, c("study_id", "title", "active", "locked")]
+#> # A tibble: 2 x 4
+#>   study_id title            active locked
+#>      <int> <chr>            <lgl>  <lgl>
+#> 1       12 A03_ColorBinding TRUE   FALSE
+#> 2       13 A01_Registration FALSE  TRUE
+
+studies$batches[[1]][, c("batch_id", "title", "active", "allowed_worker_types")]
+#> # A tibble: 2 x 4
+#>   batch_id title           active allowed_worker_types
+#>      <int> <chr>           <lgl>  <list>
+#> 1       34 Default         TRUE   <chr [2]>
+#> 2       35 Prolific wave 2 FALSE  <chr [1]>
+```
+
+`jatos_study()`, `jatos_components()`, `jatos_batches()` and `jatos_batch()` fetch the same information for one study or batch.
+
+## Result metadata
+
+`jatos_results_metadata()` asks the server what results exist without downloading any data. It takes any combination of study, batch, component, study result, component result and group ids and returns one row per component result. The message summarises what came back.
+
+```{r}
+meta <- jatos_results_metadata(study_id = 12)
+#> i <https://jatos.example.org>: 4 study results, 6 component results (2 not
+#>   FINISHED).
+
+meta[, c("study_result_id", "component_result_id", "batch_id", "component_state", "data_size")]
+#> # A tibble: 6 x 5
+#>   study_result_id component_result_id batch_id component_state data_size
+#>             <int>               <int>    <int> <chr>               <dbl>
+#> 1            9001                7001       34 FINISHED             2048
+#> 2            9002                7002       34 RELOADED                0
+#> 3            9002                7003       34 FINISHED             1536
+#> 4            9003                7004       34 STARTED                 0
+#> 5            9004                7005       36 FINISHED              300
+#> 6            9004                7006       36 FINISHED              700
+```
+
+`study_id` and `component_id` also take uuid strings, which a study keeps when it is exported and imported on another server while its id changes, so a script keyed by uuid survives the move. The server takes them in separate fields, and the package sends them there:
+
+```{r}
+jatos_results_metadata(study_id = "1c2d3e4f-0000-4000-8000-000000000012")
+#> i <https://jatos.example.org>: 4 study results, 6 component results (2 not
+#>   FINISHED).
+```
+
+A *study result* is one run by one participant; a *component result* is one component within that run. Every column name carries its level: `study_state` and `component_state`, `study_start_time` and `component_start_time`, and so on. `data_size` is the size of the result data in bytes, which the download below compares against the local file.
+
+Study result 9002 has two component results for the same component, one of them a reload with no data. That is the usual reason for more than one row per study result in a single-component study. `jatos_study_results()` collapses the tibble to one row per study result when that is the level you need:
+
+```{r}
+jatos_study_results(meta)[, c("study_result_id", "batch_id", "study_state", "n_component_results", "data_size")]
+#> # A tibble: 4 x 5
+#>   study_result_id batch_id study_state n_component_results data_size
+#>             <int>    <int> <chr>                     <int>     <dbl>
+#> 1            9001       34 FINISHED                      1      2048
+#> 2            9002       34 FINISHED                      2      1536
+#> 3            9003       34 STARTED                       1         0
+#> 4            9004       36 FINISHED                      2      1000
+```
+
+With a participant key, `jatos_study_results()` also counts the runs per participant as `n_runs`: by default the `query_prolific_pid` column that `jatos_url_query()` adds (below), or any column named in `participant`, such as `worker_id` or a field extracted from the data. That is the duplicate check to run before N is counted.
+
+```{r}
+jatos_study_results(jatos_url_query(meta))[, c("study_result_id", "query_prolific_pid", "n_runs")]
+#> # A tibble: 4 x 3
+#>   study_result_id query_prolific_pid n_runs
+#>             <int> <chr>               <int>
+#> 1            9001 <NA>                   NA
+#> 2            9002 <NA>                   NA
+#> 3            9003 <NA>                   NA
+#> 4            9004 p-0004                  1
+```
+
+The metadata tibble is a plain tibble. Filter it as you like (`meta[meta$component_state == "FINISHED", ]`, or `dplyr::filter()`); every function that takes it only checks that the columns it uses are still there.
+
+The three exclusions every export makes have a function of their own, so that the counts are reported next to the call: unfinished runs, the researcher's own test runs from the JATOS GUI (worker type `Jatos`), and runs before the study went live. `jatos_filter_metadata()` works on the study result, so every component result of a dropped run goes with it.
+
+```{r}
+finished <- jatos_filter_metadata(meta, states = "FINISHED")
+#> i Excluded 1 of 4 study results; 3 remain.
+#> * 1 by study state (kept "FINISHED")
+```
+
+`worker_types = c("PersonalSingle", "GeneralMultiple")`, `since` and `until` (a half-open interval of start times, read in the time zone `tz`, UTC by default), `exclude_study_result_id` and `exclude_worker_id` (your own test runs through a real link) work the same way, each with its own count in the message. Nothing is filtered unless you ask for it, here and in `jatos_export_results()` below.
+
+Participants who arrive through a Prolific link bring `PROLIFIC_PID`, `STUDY_ID` and `SESSION_ID` as URL query parameters, which JATOS stores with the study result; the `url_query` list column holds them. `jatos_url_query()` widens them into one column per parameter, prefixed so that `STUDY_ID` cannot collide with `study_id`:
+
+```{r}
+jatos_url_query(meta)[, c("study_result_id", "query_prolific_pid", "query_session_id")]
+#> # A tibble: 6 x 3
+#>   study_result_id query_prolific_pid query_session_id
+#>             <int> <chr>              <chr>
+#> 1            9001 <NA>               <NA>
+#> 2            9002 <NA>               <NA>
+#> 3            9002 <NA>               <NA>
+#> 4            9003 <NA>               <NA>
+#> 5            9004 p-0004             s-0004
+#> 6            9004 p-0004             s-0004
+```
+
+## Download into a cache
+
+`jatos_download_results()` fetches the `data.txt` of every component result in the tibble that is missing locally or has grown on the server, and stores it under `<path>/batch_<id>/study_result_<id>/comp-result_<id>/`. Results with size 0 are skipped, not requested. Before a long run, `dry_run = TRUE` shows what would be fetched without a single request:
+
+```{r}
+plan <- jatos_download_results(meta, "JATOS_data", dry_run = TRUE)
+#> i Batch 34: 2 component results (3.6 kB) to fetch in 1 request.
+#> i Batch 36: 2 component results (1.0 kB) to fetch in 1 request.
+
+plan[, c("component_result_id", "data_size", "status")]
+#> # A tibble: 6 x 3
+#>   component_result_id data_size status
+#>                 <int>     <dbl> <chr>
+#> 1                7001      2048 pending
+#> 2                7002         0 empty
+#> 3                7003      1536 pending
+#> 4                7004         0 empty
+#> 5                7005       300 pending
+#> 6                7006       700 pending
+```
+
+The real run shows a progress bar over the requests and reports per batch:
+
+```{r}
+meta <- jatos_download_results(meta, "JATOS_data")
+#> v Batch 34: fetched 2 of 2 component results in 1 request.
+#> v Batch 36: fetched 2 of 2 component results in 1 request.
+
+meta[, c("component_result_id", "data_size", "file_size", "status")]
+#> # A tibble: 6 x 4
+#>   component_result_id data_size file_size status
+#>                 <int>     <dbl>     <dbl> <chr>
+#> 1                7001      2048      2048 fetched
+#> 2                7002         0        NA empty
+#> 3                7003      1536      1536 fetched
+#> 4                7004         0        NA empty
+#> 5                7005       300       300 fetched
+#> 6                7006       700       700 fetched
+
+list.files("JATOS_data", recursive = TRUE)
+#> batch_34/metadata.json
+#> batch_34/study_result_9001/comp-result_7001/data.txt
+#> batch_34/study_result_9002/comp-result_7003/data.txt
+#> batch_36/metadata.json
+#> batch_36/study_result_9004/comp-result_7005/data.txt
+#> batch_36/study_result_9004/comp-result_7006/data.txt
+```
+
+Each batch directory also receives the server's own `metadata.json` for that batch, written after the batch's data, so the cache can be read back without the server later. The run above cost four requests: two for the data (one per batch) and two for the metadata files.
+
+Run the same call again and nothing is requested:
+
+```{r}
+meta <- jatos_download_results(meta, "JATOS_data")
+table(meta$status)
+#>
+#>     empty unchanged
+#>         2         4
+```
+
+The comparison is in bytes on both sides. When the server reports a *smaller* size than the local file, the local copy stays and the row gets status `shrunk`; only `overwrite = TRUE` replaces it, because the local file may be the last copy of that participant's data. A request that fails does not stop the run: its rows get status `failed`, the other chunks are fetched, and one warning at the end says what went wrong; the next run retries them.
+
+`jatos_cache_status()` summarises a cache batch by batch, including data files that sit in a batch directory without a metadata row:
+
+```{r}
+jatos_cache_status("JATOS_data")
+#> # A tibble: 2 x 8
+#>   batch_id path        n_results n_downloaded n_pending n_shrunk n_orphans bytes
+#>      <int> <chr>           <int>        <int>     <int>    <int>     <int> <dbl>
+#> 1       34 JATOS_data~         4            2         0        0         0  3584
+#> 2       36 JATOS_data~         2            2         0        0         0  1000
+```
+
+The `batch_<id>/` layout is the only one the package reads or writes. A directory in another layout (a `metadata.json` at its top level, `JATOS_DATA_<id>` folders from smartr) is refused with a message naming what was found. The check runs before anything in the directory is read or written, and the message says so: the server is the source of truth, so download into a fresh directory, or import a results zip with `jatos_import_results()` — one exported from the JATOS GUI, or one fetched with `jatos_export_archive()` (see "Work offline" below).
+
+### Files participants uploaded
+
+A study that lets participants draw or record uploads files with `jatos.uploadResultFile()`; they are not part of the result data. The metadata lists them per component result in the `files` list column, and `jatos_result_files()` widens that into one row per file:
+
+```{r}
+jatos_result_files(meta)
+#> # A tibble: 1 x 6
+#>   study_result_id component_result_id component_id batch_id filename     size
+#>             <int>               <int>        <int>    <int> <chr>       <dbl>
+#> 1            9002                7003          121       34 drawing.png  4096
+```
+
+`jatos_download_files()` fetches them with the same rule as the result data, applied per file, and stores each one next to the `data.txt` of its component result in a `files/` folder, which is where the server puts them in its own zips. `dry_run = TRUE` plans without a request:
+
+```{r}
+jatos_download_files(meta, "JATOS_data", dry_run = TRUE)
+#> i Batch 34: 1 file (4.1 kB) to fetch in 1 request.
+
+files <- jatos_download_files(meta, "JATOS_data")
+#> v Batch 34: fetched 1 of 1 file in 1 request.
+
+files[, c("component_result_id", "filename", "size", "file_size", "status")]
+#> # A tibble: 1 x 5
+#>   component_result_id filename     size file_size status
+#>                 <int> <chr>       <dbl>     <dbl> <chr>
+#> 1                7003 drawing.png  4096      4096 fetched
+
+list.files("JATOS_data", recursive = TRUE)
+#> batch_34/metadata.json
+#> batch_34/study_result_9001/comp-result_7001/data.txt
+#> batch_34/study_result_9002/comp-result_7003/data.txt
+#> batch_34/study_result_9002/comp-result_7003/files/drawing.png
+#> batch_36/metadata.json
+#> batch_36/study_result_9004/comp-result_7005/data.txt
+#> batch_36/study_result_9004/comp-result_7006/data.txt
+```
+
+The status vocabulary is the one of the data download (`fetched`, `unchanged`, `empty`, `shrunk`, `missing`, `failed`), and the files of one component result always travel in one request. A second call finds nothing to do:
+
+```{r}
+table(jatos_download_files(meta, "JATOS_data")$status)
+#>
+#> unchanged
+#>         1
+```
+
+## Pull single fields out of the files
+
+Often one value per file is needed before the data is read in full, for example a participant id to match against a Prolific export. `jatos_extract_fields()` reads it by a key-anchored regular expression, which is fast on thousands of files, and parses every file where that read did not find exactly one value to compare the two readings.
+
+```{r}
+meta <- jatos_extract_fields(meta, "participant_id")
+
+meta[, c("component_result_id", "status", "participant_id", "participant_id_status")]
+#> # A tibble: 6 x 4
+#>   component_result_id status    participant_id participant_id_status
+#>                 <int> <chr>     <chr>          <chr>
+#> 1                7001 unchanged P1             unique
+#> 2                7002 empty     <NA>           <NA>
+#> 3                7003 unchanged P2             unique
+#> 4                7004 empty     <NA>           <NA>
+#> 5                7005 unchanged P4             unique
+#> 6                7006 unchanged P4             unique
+```
+
+Every occurrence of the key in a file is collected, at any depth. The value is returned when all occurrences agree (`unique`); a file where they disagree gets `NA` and status `conflict`, a file without the key `absent`, and a file that is not valid JSON `unparseable`. Every `conflict` file, and every `absent` file as long as the key was found somewhere, is parsed in full and compared with the regular expression's reading (here none, so nothing is reported); a file with one agreeing value needs no parse, and a key found in no file is reported `absent` without parsing. A field that names a metadata column (`batch_id`, `worker_id`, `file`, ...) is refused, since the extracted values would replace the server's, and the tibble remembers which columns came from an extraction (attribute `jatosr_extracted`). `jatos_study_results()` carries an extracted field up to the study-result level and flags study results whose components disagree on it:
+
+```{r}
+jatos_study_results(meta)[, c("study_result_id", "n_component_results", "participant_id")]
+#> # A tibble: 4 x 3
+#>   study_result_id n_component_results participant_id
+#>             <int>               <int> <chr>
+#> 1            9001                   1 P1
+#> 2            9002                   2 P2
+#> 3            9003                   1 <NA>
+#> 4            9004                   2 P4
+```
+
+## Read the trials
+
+`jatos_read_results()` reads every local file of the tibble and binds the trials. Every row gets the ids of its study result and component result and, by default, the batch, component, worker, worker type, study state and start time of that run from the metadata, so the dataset needs no join later. Files that differ in their columns are bound with `NA` filling. A nested object (a survey `response`) is stored as a list column, one list per trial, whatever shape jsonlite gave it in each file, and a message names such columns; a column whose atomic type differs between files (a number here, a string there) is an error that names the column, or, with `coerce = "character"`, is converted to text in every file.
+
+```{r}
+trials <- jatos_read_results(meta)
+#> i 2 rows have no local file.
+#> i Stored the nested object column response as list column, one list per
+#>   trial.
+
+trials[, c("study_result_id", "batch_id", "worker_id", "study_state", "trial_index", "rt")]
+#> # A tibble: 6 x 6
+#>   study_result_id batch_id worker_id study_state trial_index    rt
+#>             <int>    <int>     <int> <chr>             <int> <dbl>
+#> 1            9001       34       501 FINISHED              0  512.
+#> 2            9001       34       501 FINISHED              1   -1
+#> 3            9002       34       502 FINISHED              0 1200
+#> 4            9002       34       502 FINISHED              1  950
+#> 5            9004       36       504 FINISHED              0 2100
+#> 6            9004       36       504 FINISHED              0 8800
+
+names(trials)
+#>  [1] "study_result_id"     "component_result_id" "batch_id"
+#>  [4] "component_id"        "worker_id"           "worker_type"
+#>  [7] "study_state"         "study_start_time"    "trial_index"
+#> [10] "trial_type"          "participant_id"      "city"
+#> [13] "rt"                  "correct"             "filler"
+#> [16] "url"                 "raw"                 "response"
+#> [19] "question_order"
+```
+
+`metadata_cols` chooses the joined columns; `NULL` keeps only the ids. A field pulled out with `jatos_extract_fields()` is joined when you name it there. That is meant for a value that does not sit at the trial level, for example an `age` answered inside a survey response. Only the survey component carries it, which the extractor reports as a message, not a fault:
+
+```{r}
+meta <- jatos_extract_fields(meta, "age")
+#> i Cross-checked 3 files without a unique value with jsonlite: 3 parsed, 0
+#>   unparseable.
+#> i 3 files without age (status `absent`).
+
+jatos_read_results(meta, metadata_cols = c("batch_id", "age"))[, c("component_result_id", "batch_id", "age", "trial_index")]
+#> i 2 rows have no local file.
+#> i Stored the nested object column response as list column, one list per
+#>   trial.
+#> # A tibble: 6 x 4
+#>   component_result_id batch_id age   trial_index
+#>                 <int>    <int> <chr>       <int>
+#> 1                7001       34 <NA>            0
+#> 2                7001       34 <NA>            1
+#> 3                7003       34 <NA>            0
+#> 4                7003       34 <NA>            1
+#> 5                7005       36 <NA>            0
+#> 6                7006       36 31              0
+```
+
+The `participant_id` extracted earlier is a top-level field of every trial already (`jsPsych.data.addProperties()` puts it there), so the trials carry it without any join. Naming it in `metadata_cols` is refused: a trial column is never overwritten or renamed by the join.
+
+```{r}
+jatos_read_results(meta, metadata_cols = c("batch_id", "participant_id"))
+#> i 2 rows have no local file.
+#> Error in `jatos_read_results()`:
+#> ! The trials of 'JATOS_data/batch_34/study_result_9001/comp-result_7001/data.txt'
+#>   already carry the column participant_id, which the metadata would overwrite.
+#> i Leave it out of `metadata_cols` (or `id_cols`), or rename the metadata
+#>   column before reading.
+```
+
+Three arguments cover studies that are not one jsPsych array per file. `reader` takes a function of one file path that returns a data frame, for example `function(file) utils::read.csv(file)` for PsychoJS; the join and the binding stay the same. `on_error = "skip"` leaves files the reader cannot read out of the result and warns once with their paths. And `split = "component"` returns one tibble per component instead of one table, for studies whose components write different columns:
+
+```{r}
+names(jatos_read_results(meta, split = "component"))
+#> i 2 rows have no local file.
+#> i Stored the nested object column response as list column, one list per
+#>   trial.
+#> [1] "121" "131" "132"
+```
+
+`jatos_read_json()` reads a single file. A file that holds several JSON values back to back, which repeated `jatos.appendResultData()` calls leave behind (arrays after arrays, or one object per call), is split into its top-level values and read as one array.
+
+```{r}
+jatos_read_json(meta$file[1])
+#> # A tibble: 2 x 7
+#>   trial_index trial_type             participant_id city      rt correct filler
+#>         <int> <chr>                  <chr>          <chr>  <dbl> <lgl>   <chr>
+#> 1           0 html-keyboard-response P1             Zürich  512. TRUE    <NA>
+#> 2           1 html-keyboard-response P1             Zürich   -1  FALSE   xxxxxx~
+```
+
+## Save the dataset
+
+`jatos_write_results()` writes the tibble as `.rds`, `.csv`, `.csv.gz`, `.tsv`, `.parquet` (with the arrow package installed) or `.RData` (`.rda`), taking the format from the file extension. `rds` and `RData` keep list columns as they are. A csv cannot hold a nested object, so list columns and nested data-frame columns are serialised cell by cell to JSON strings, times are written as ISO 8601 in UTC, and `NA` as an empty field. `parquet` keeps a list column when arrow can give it one type and serialises the others (an object in one trial, a vector in the next) to JSON strings like csv; a message names them.
+
+```{r}
+jatos_write_results(trials, "data/study12.rds")
+
+jatos_write_results(trials, "data/study12.csv")
+#> i Serialised the list columns response and question_order to JSON strings.
+
+jatos_write_results(trials, "data/study12.RData", object = "study12")
+load("data/study12.RData")
+#> [1] "study12"
+```
+
+The file is written under a temporary name and renamed into place, and an existing file is never replaced unless you say so:
+
+```{r}
+jatos_write_results(trials, "data/study12.rds")
+#> Error in `jatos_write_results()`:
+#> ! 'data/study12.rds' already exists.
+#> i Set `overwrite = TRUE` to replace it.
+```
+
+`jatos_export_results()` runs everything above in one call: metadata for the ids given, the filters, download into the cache, the URL query columns, the optional field extraction, the read with the join, and the write. Run it again after data collection has moved on and only new or grown results are fetched; the files are then rewritten from the whole cache.
+
+```{r}
+jatos_export_results(
+  study_id = 12, cache = "JATOS_data", file = "data/study12.rds",
+  states = "FINISHED", overwrite = TRUE
+)
+#> i <https://jatos.example.org>: 4 study results, 6 component results (2 not
+#>   FINISHED).
+#> i Excluded 1 of 4 study results; 3 remain.
+#> * 1 by study state (kept "FINISHED")
+#> i Reading 4 files.
+#> i 1 row has no local file.
+#> i Stored the nested object column response as list column, one list per
+#>   trial.
+#> i Writing 6 trials to 'data/study12.rds'.
+#> v Wrote 6 trials from 4 component results to 'data/study12.rds'.
+#> i Also wrote 'data/study12_metadata.rds' and 'data/study12_export.json'.
+```
+
+On a cache that is already current, as here, that costs one request, the metadata. The trials tibble is returned invisibly; its rows carry the `query_*` columns next to the default metadata columns. `until`, `exclude_study_result_id`, `exclude_worker_id` and `tz` pass through to the filter, `reader` and `metadata_cols` to the reader.
+
+Three files come out of the call. `study12.rds` holds the trials. `study12_metadata.rds` holds one row per study result, the table from `jatos_study_results()` with the URL query columns, which is where exclusions, payments and the participant count of a methods section come
+from:
+
+```{r}
+readRDS("data/study12_metadata.rds")[, c("study_result_id", "study_state", "n_component_results", "query_prolific_pid")]
+#> # A tibble: 3 x 4
+#>   study_result_id study_state n_component_results query_prolific_pid
+#>             <int> <chr>                     <int> <chr>
+#> 1            9001 FINISHED                      1 <NA>
+#> 2            9002 FINISHED                      2 <NA>
+#> 3            9004 FINISHED                      2 p-0004
+```
+
+`study12_export.json` records what produced the other two, readable without R:
+
+```{r}
+cat(readLines("data/study12_export.json"), sep = "\n")
+#> {
+#>   "package": "jatosr",
+#>   "version": "0.1.0",
+#>   "exported_at": "2026-09-06T11:56:51Z",
+#>   "host": "https://jatos.example.org",
+#>   "profile": "default",
+#>   "study_id": 12,
+#>   "filters": {
+#>     "states": "FINISHED"
+#>   },
+#>   "cache": "/home/researcher/study12/JATOS_data",
+#>   "counts": {
+#>     "on_server": {
+#>       "study_results": 4,
+#>       "component_results": 6
+#>     },
+#>     "exported": {
+#>       "study_results": 3,
+#>       "component_results": 5,
+#>       "files_read": 4,
+#>       "trials": 6
+#>     }
+#>   },
+#>   "files": {
+#>     "trials": "data/study12.rds",
+#>     "metadata": "data/study12_metadata.rds"
+#>   }
+#> }
+```
+
+`metadata_file = FALSE` and `provenance = FALSE` switch the two sidecars off; `split = "component"` writes one trials file per component. Every target is checked before the first request, so a missing directory or a file in the way costs no download.
+
+### The study archive
+
+The dataset says what participants did; the study archive says what they saw. `jatos_export_study()` downloads the archive JATOS itself exports (`GET /studies/{id}`): a zip with the study's properties and components as JSON next to the assets folder that holds the experiment's HTML, scripts and stimuli. JATOS imports it as a `.jzip` file, so an archive saved next to the data reproduces the exact experiment that produced them.
+
+```{r}
+jatos_export_study(12, "data/study12_study.jzip")
+#> v Wrote the archive of study 12 to 'data/study12_study.jzip' (479 B).
+
+utils::unzip("data/study12_study.jzip", list = TRUE)[, c("Name", "Length")]
+#>                          Name Length
+#> 1        A03_ColorBinding.jas    293
+#> 2 A03_ColorBinding/index.html     47
+```
+
+`archive_study = TRUE` on `jatos_export_results()` does the same as part of the export, as `<stem>_study.jzip` next to the other files, and the provenance record lists it:
+
+```{r}
+jatos_export_results(
+  study_id = 12, cache = "JATOS_data", file = "data/study12.rds",
+  states = "FINISHED", archive_study = TRUE, overwrite = TRUE
+)
+#> i <https://jatos.example.org>: 4 study results, 6 component results (2 not
+#>   FINISHED).
+#> i Excluded 1 of 4 study results; 3 remain.
+#> * 1 by study state (kept "FINISHED")
+#> i Reading 4 files.
+#> i 1 row has no local file.
+#> i Stored the nested object column response as list column, one list per
+#>   trial.
+#> v Wrote the archive of study 12 to 'data/study12_study.jzip' (479 B).
+#> i Writing 6 trials to 'data/study12.rds'.
+#> v Wrote 6 trials from 4 component results to 'data/study12.rds'.
+#> i Also wrote 'data/study12_metadata.rds', 'data/study12_export.json', and
+#>   'data/study12_study.jzip'.
+
+jsonlite::read_json("data/study12_export.json")$files
+#> $trials
+#> [1] "data/study12.rds"
+#>
+#> $metadata
+#> [1] "data/study12_metadata.rds"
+#>
+#> $study_archive
+#> [1] "data/study12_study.jzip"
+```
+
+When several studies are exported, or when only `batch_id` is given and the studies come from the metadata, each archive is named by its id, `<stem>_study_<id>.jzip`. The endpoint needs the user role; a token with the viewer role only can read results but not the archive.
+
+### The results archive
+
+For a data deposit the artefact people trust is the zip JATOS itself produces, the one the GUI's "Export Results" downloads: every `data.txt`, the uploaded files and a `metadata.json` in one archive. `jatos_export_archive()` fetches it (`POST /results`) for the studies or batches given and writes it untouched; `archive_results = TRUE` on `jatos_export_results()` does the same next to the dataset, as `<stem>_results.zip`, and records its size and md5 in the provenance file. This is an archival copy, fetched in full each time; the incremental
+download into the cache is a different thing.
+
+```{r}
+jatos_export_archive(study_id = 12, file = "data/study12_results.zip")
+#> v Wrote the results archive to 'data/study12_results.zip' (2.5 kB).
+
+jatos_export_results(
+  study_id = 12, cache = "JATOS_data", file = "data/study12.rds",
+  states = "FINISHED", archive_results = TRUE, overwrite = TRUE
+)
+#> i <https://jatos.example.org>: 4 study results, 6 component results (2 not
+#>   FINISHED).
+#> i Excluded 1 of 4 study results; 3 remain.
+#> * 1 by study state (kept "FINISHED")
+#> i Reading 4 files.
+#> i 1 row has no local file.
+#> i Stored the nested object column response as list column, one list per
+#>   trial.
+#> v Wrote the results archive to 'data/study12_results.zip' (2.5 kB).
+#> i Writing 6 trials to 'data/study12.rds'.
+#> v Wrote 6 trials from 4 component results to 'data/study12.rds'.
+#> i Also wrote 'data/study12_metadata.rds', 'data/study12_export.json', and
+#>   'data/study12_results.zip'.
+
+jsonlite::read_json("data/study12_export.json")$files$results_archive
+#> $file
+#> [1] "data/study12_results.zip"
+#>
+#> $bytes
+#> [1] 2487
+#>
+#> $md5
+#> [1] "d0efe5d9a324dbbc16402b6a17380ac1"
+```
+
+### Raw files per participant
+
+Labs that share raw JSON per participant want one file per person rather than the cache tree. `jatos_write_raw()` copies each `data.txt` byte for byte to `<path>/<name>.json`, named by a metadata column or an extracted field; a study result with several files gets the component result id appended, and a name shared by two study results is an error that lists them.
+
+```{r}
+jatos_write_raw(meta, "raw", name_by = "participant_id")
+#> i 2 rows have no local file.
+#> v Wrote 4 files to 'raw'.
+
+list.files("raw")
+#> [1] "P1.json"      "P2.json"      "P4_7005.json" "P4_7006.json"
+```
+
+## Work offline
+
+A cache built by `jatos_download_results()` is self-describing. `jatos_read_metadata()` rebuilds the metadata tibble from the cached `metadata.json` files and attaches the local file paths and sizes, without any request, so an analysis script can start from the cache alone.
+
+```{r}
+offline <- jatos_read_metadata("JATOS_data")
+offline[, c("component_result_id", "batch_id", "data_size", "file_size")]
+#> # A tibble: 6 x 4
+#>   component_result_id batch_id data_size file_size
+#>                 <int>    <int>     <dbl>     <dbl>
+#> 1                7001       34      2048      2048
+#> 2                7002       34         0        NA
+#> 3                7003       34      1536      1536
+#> 4                7004       34         0        NA
+#> 5                7005       36       300       300
+#> 6                7006       36       700       700
+```
+
+The sizes in this tibble are those of the cached `metadata.json`, so passing it to `jatos_download_results()` finds nothing new; fetch fresh metadata from the server when you want to look for new results.
+
+`jatos_export_results(download = FALSE)` runs the same pipeline from the cache: the metadata comes from the cached files, the filters, the join and the write are the same, no request is made and no credentials are needed. That is the call for an analysis machine without a token, for continuous integration, or for rebuilding the dataset after the study has left the server. The provenance record then says `offline: true` and lists the metadata files it was built from.
+
+Without ids the whole cache is exported (online at least one id is required, since the server asks for one); with `study_id` or `batch_id` the cached metadata is filtered exactly by those.
+
+```{r}
+jatos_export_results(
+  cache = "JATOS_data", file = "data/study12.rds",
+  states = "FINISHED", download = FALSE, overwrite = TRUE
+)
+#> i 'JATOS_data': 4 study results, 6 component results in the cached metadata; no
+#>   request made.
+#> i Excluded 1 of 4 study results; 3 remain.
+#> * 1 by study state (kept "FINISHED")
+#> i Reading 4 files.
+#> i 1 row has no local file.
+#> i Stored the nested object column response as list column, one list per
+#>   trial.
+#> i Writing 6 trials to 'data/study12.rds'.
+#> v Wrote 6 trials from 4 component results to 'data/study12.rds'.
+#> i Also wrote 'data/study12_metadata.rds' and 'data/study12_export.json'.
+```
+
+Data that did not come through the package, a zip exported from the JATOS GUI ("Export Results") or by `jatos_export_archive()`, enters a cache with `jatos_import_results()`, which unpacks it into the same `batch_<id>/` layout with one `metadata.json` per batch; the reader, the status report and later incremental downloads then treat it like any other cache.
+
+```{r}
+jatos_import_results("data/study12_results.zip", "JATOS_import")
+#> v Imported batches 34 and 36 into 'JATOS_import': 6 component results listed, 4
+#>   data files and 1 uploaded file written.
+
+jatos_cache_status("JATOS_import")
+#> # A tibble: 2 x 8
+#>   batch_id path        n_results n_downloaded n_pending n_shrunk n_orphans bytes
+#>      <int> <chr>           <int>        <int>     <int>    <int>     <int> <dbl>
+#> 1       34 JATOS_impo~         4            2         0        0         0  3584
+#> 2       36 JATOS_impo~         2            2         0        0         0  1000
+```
+
+## Study codes
+
+A study code is the last part of a study link (`<host>/publix/<code>`). `jatos_create_study_codes()` generates codes for a batch; for the personal worker types the server creates `n` new codes, for the general types it returns the batch's single code.
+
+```{r}
+codes <- jatos_create_study_codes(12, batch_id = 34, n = 3, type = "PersonalMultiple", comment = "wave 2")
+#> v Received 3 PersonalMultiple study codes for study 12.
+
+codes
+#> # A tibble: 3 x 6
+#>   study_code study_id batch_id type             comment study_link
+#>   <chr>         <int>    <int> <chr>            <chr>   <chr>
+#> 1 code0001         12       34 PersonalMultiple wave 2  https://jatos.example.o~
+#> 2 code0002         12       34 PersonalMultiple wave 2  https://jatos.example.o~
+#> 3 code0003         12       34 PersonalMultiple wave 2  https://jatos.example.o~
+
+codes$study_link
+#> [1] "https://jatos.example.org/publix/code0001"
+#> [2] "https://jatos.example.org/publix/code0002"
+#> [3] "https://jatos.example.org/publix/code0003"
+```
+
+The server answers with the codes only. `jatos_study_code()` fetches the full properties of a code, including whether it is active, and `jatos_deactivate_study_code()` closes codes that should admit nobody anymore:
+
+```{r}
+jatos_study_code("code0001")
+#> # A tibble: 1 x 7
+#>   study_code batch_id type           comment active study_link  study_entry_link
+#>   <chr>         <int> <chr>          <chr>   <lgl>  <chr>       <chr>
+#> 1 code0001         34 PersonalSingle pilot 1 TRUE   https://ja~ https://jatos.e~
+
+jatos_deactivate_study_code(codes$study_code)[, c("study_code", "type", "active")]
+#> # A tibble: 3 x 3
+#>   study_code type             active
+#>   <chr>      <chr>            <lgl>
+#> 1 code0001   PersonalMultiple FALSE
+#> 2 code0002   PersonalMultiple FALSE
+#> 3 code0003   PersonalMultiple FALSE
+```
+
+`jatos_study_links()` builds the run URLs from codes without a request, for example for codes copied out of the JATOS GUI. It needs the host, not the token, so this chunk does run:
+
+```{r, eval = TRUE}
+jatosr::jatos_study_links(c("8kw0pFV5M1e", "Qm3xYtb9Lc2"), host = "https://jatos.example.org")
+```

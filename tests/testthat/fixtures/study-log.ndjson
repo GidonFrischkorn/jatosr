@@ -1,0 +1,3 @@
+{"timestamp":1756001000000,"msg":"Study created","studyUuid":"1c2d3e4f-0000-4000-8000-000000000012","username":"researcher@example.org"}
+{"timestamp":1756002000000,"msg":"Component created","componentUuid":"c000-121","username":"researcher@example.org"}
+{"timestamp":1756003000000,"msg":"Result data exported","studyResultIds":[9001,9002],"username":"researcher@example.org"}

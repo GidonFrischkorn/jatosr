@@ -1,0 +1,7 @@
+{
+  "apiVersion": "1.1.0",
+  "data": [
+    {"id": 501, "groupState": "STARTED", "activeMemberList": [9001, 9002], "historyMemberList": [], "activeMemberCount": 2, "historyMemberCount": 0, "resultCount": 2, "startDate": 1756001000000, "endDate": null},
+    {"id": 502, "groupState": "FINISHED", "activeMemberList": [], "historyMemberList": [9003, 9004, 9005], "activeMemberCount": 0, "historyMemberCount": 3, "resultCount": 3, "startDate": 1756002000000, "endDate": 1756005600000}
+  ]
+}

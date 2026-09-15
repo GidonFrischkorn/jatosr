@@ -1,0 +1,78 @@
+name: Bug report
+description: A jatosr function fails or returns something wrong.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before you paste anything: remove your API token.** A JATOS token can appear in an error message, in a `httr2` verbose log, and in the output of `Sys.getenv()`. Replace it with `<token>`. If a token has already been posted anywhere, revoke it in the JATOS user interface first.
+
+        This page is public. Also replace, in everything you paste: the host of a server that is not public (write `https://jatos.example.org`), the username and name that `jatos_token_info()` prints, study titles, and file paths that contain your name. Never paste participant data or a result file; describe its shape instead. A token that leaked through a bug in jatosr is a security report, not an issue: see the security policy.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you called, what you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reprex
+    attributes:
+      label: Reproducible example
+      description: >-
+        The smallest call that fails, with the full error message. A `reprex::reprex()` is ideal. Say which study, batch or result ids were involved only if the ids matter for the bug.
+      render: r
+    validations:
+      required: true
+
+  - type: textarea
+    id: sitrep
+    attributes:
+      label: Credential report
+      description: >-
+        The output of `jatos_credentials_sitrep()`, with the host replaced if your server is not public. It names the jatosr, keyring, R and operating system versions, the commit for a package installed from GitHub, and the credential store in use. It never prints a token.
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-source
+    attributes:
+      label: Installed from
+      options:
+        - GitHub (pak or remotes)
+        - CRAN
+        - A local source checkout
+    validations:
+      required: true
+
+  - type: input
+    id: jatos-version
+    attributes:
+      label: JATOS server version
+      description: The version your server runs, shown in the JATOS user interface.
+      placeholder: 3.9.4
+    validations:
+      required: true
+
+  - type: textarea
+    id: session-info
+    attributes:
+      label: Session info
+      description: The output of `sessionInfo()`, or at least R version and platform. Mention the Linux distribution, and whether the machine has a desktop session, if the bug is about the credential store.
+      render: text
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: The report contains no API token, no private host, no username, no study title and no participant data.
+          required: true
+        - label: >-
+            I checked that the same call also fails on the current `main` of this repository, or I am reporting against a released version and said which.
+          required: false

@@ -1,0 +1,13 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question about JATOS itself
+    url: https://github.com/JATOS/JATOS/discussions
+    about: >-
+      Server setup, study links, the JATOS user interface or the REST API's own behaviour are questions for the JATOS project, not for this R client.
+  - name: Package documentation
+    url: https://www.gfrischkorn.org/jatosr/
+    about: >-
+      The reference and the vignettes, including "developer-notes", which describes the package's internals and how to use it as a template.
+  - name: Contributing guide
+    url: https://github.com/GidonFrischkorn/jatosr/blob/main/CONTRIBUTING.md
+    about: The development cycle and the rules a pull request has to satisfy.

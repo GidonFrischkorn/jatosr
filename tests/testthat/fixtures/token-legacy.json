@@ -1,0 +1,13 @@
+{
+  "apiVersion": "1.0.1",
+  "data": {
+    "id": 54,
+    "name": "no-expiry-token",
+    "creationDate": 1788895565000,
+    "expires": null,
+    "active": true,
+    "isExpired": false,
+    "expirationDate": 0,
+    "isAdminToken": true
+  }
+}

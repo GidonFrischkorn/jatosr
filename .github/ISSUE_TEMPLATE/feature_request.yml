@@ -1,0 +1,46 @@
+name: Feature request
+description: A function, argument or behaviour that jatosr should have.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The package serves one workflow, JATOS with Prolific, and stays small on purpose.
+
+  - type: textarea
+    id: workflow
+    attributes:
+      label: The workflow it serves
+      description: >-
+        What you are doing when you need this: which study, which step between collecting data on JATOS and having an analysis-ready dataset in R.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: What you do instead today
+      description: >-
+        The manual step, the loop, or the other package you reach for. If it is already possible with jatosr but awkward, show the call.
+      render: r
+    validations:
+      required: true
+
+  - type: textarea
+    id: sketch
+    attributes:
+      label: Sketch of the interface
+      description: >-
+        Optional. What the call would look like, and which existing function it would sit next to.
+      render: r
+    validations:
+      required: false
+
+  - type: input
+    id: endpoint
+    attributes:
+      label: JATOS API endpoint
+      description: >-
+        Optional. If the request needs an endpoint jatosr does not call yet, name it or link its documentation.
+    validations:
+      required: false

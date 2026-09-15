@@ -1,0 +1,141 @@
+{
+  "apiVersion": "1.1.0",
+  "data": [
+    {
+      "studyId": 12,
+      "studyUuid": "1c2d3e4f-0000-4000-8000-000000000012",
+      "studyTitle": "A03_ColorBinding",
+      "studyResults": [
+        {
+          "id": 9001,
+          "uuid": "sr-9001",
+          "studyCode": "code9001",
+          "startDate": 1756000000000,
+          "endDate": 1756000900000,
+          "duration": "00:15:00",
+          "lastSeenDate": 1756000900000,
+          "studyState": "FINISHED",
+          "workerId": 501,
+          "workerType": "GeneralMultiple",
+          "batchId": 34,
+          "batchUuid": "b000-34",
+          "batchTitle": "Default",
+          "groupId": null,
+          "isQuotaReached": false,
+          "componentResults": [
+            {
+              "id": 7001,
+              "componentId": 121,
+              "componentUuid": "c000-121",
+              "startDate": 1756000000000,
+              "endDate": 1756000900000,
+              "duration": "00:15:00",
+              "componentState": "FINISHED",
+              "path": "/study_result_9001/comp-result_7001",
+              "data": {
+                "size": 2048,
+                "sizeHumanReadable": "2.0 kB"
+              },
+              "files": [],
+              "isQuotaReached": false
+            }
+          ]
+        },
+        {
+          "id": 9002,
+          "uuid": "sr-9002",
+          "studyCode": "code9002",
+          "comment": "browser crashed once",
+          "startDate": 1756001000000,
+          "endDate": 1756002200000,
+          "duration": "00:20:00",
+          "lastSeenDate": 1756002200000,
+          "studyState": "FINISHED",
+          "workerId": 502,
+          "workerType": "GeneralMultiple",
+          "batchId": 34,
+          "batchUuid": "b000-34",
+          "batchTitle": "Default",
+          "groupId": null,
+          "isQuotaReached": false,
+          "componentResults": [
+            {
+              "id": 7002,
+              "componentId": 121,
+              "componentUuid": "c000-121",
+              "startDate": 1756001000000,
+              "endDate": null,
+              "duration": null,
+              "componentState": "RELOADED",
+              "path": "/study_result_9002/comp-result_7002",
+              "data": {
+                "size": 0,
+                "sizeHumanReadable": "0 B"
+              },
+              "files": [],
+              "isQuotaReached": false
+            },
+            {
+              "id": 7003,
+              "componentId": 121,
+              "componentUuid": "c000-121",
+              "startDate": 1756001100000,
+              "endDate": 1756002200000,
+              "duration": "00:18:20",
+              "componentState": "FINISHED",
+              "path": "/study_result_9002/comp-result_7003",
+              "data": {
+                "size": 1536,
+                "sizeHumanReadable": "1.5 kB",
+                "filename": "data.txt"
+              },
+              "files": [
+                {
+                  "filename": "drawing.png",
+                  "size": 4096
+                }
+              ],
+              "isQuotaReached": false
+            }
+          ]
+        },
+        {
+          "id": 9003,
+          "uuid": "sr-9003",
+          "studyCode": "code9003",
+          "startDate": 1756003000000,
+          "endDate": null,
+          "duration": null,
+          "lastSeenDate": 1756003300000,
+          "studyState": "STARTED",
+          "message": "Browser closed",
+          "workerId": 503,
+          "workerType": "GeneralMultiple",
+          "batchId": 34,
+          "batchUuid": "b000-34",
+          "batchTitle": "Default",
+          "groupId": null,
+          "isQuotaReached": false,
+          "componentResults": [
+            {
+              "id": 7004,
+              "componentId": 121,
+              "componentUuid": "c000-121",
+              "startDate": 1756003000000,
+              "endDate": null,
+              "duration": null,
+              "componentState": "STARTED",
+              "path": "/study_result_9003/comp-result_7004",
+              "data": {
+                "size": 0,
+                "sizeHumanReadable": "0 B"
+              },
+              "files": [],
+              "isQuotaReached": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

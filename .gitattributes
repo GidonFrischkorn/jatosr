@@ -1,0 +1,3 @@
+# The example cache records each file's size in bytes; a line-ending
+# conversion on checkout would make every file disagree with its metadata.
+inst/extdata/** -text

@@ -1,0 +1,6 @@
+{
+  "apiVersion": "1.1.0",
+  "error": {
+    "message": "Invalid or expired API token"
+  }
+}

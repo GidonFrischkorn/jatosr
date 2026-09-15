@@ -1,0 +1,58 @@
+name: Sibling package for another platform
+description: >-
+  A client for another hosting platform, built from this repository as a
+  template.
+labels: ["sibling-package"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The section "Using jatosr as a template" of `vignette("developer-notes")` lists what to copy unchanged, what to replace, and in which order to build. This issue is the place to say which platform you are aiming at, so that the parts worth generalising can move into the template rather than being reinvented.
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: The name of the hosting platform.
+      placeholder: Pavlovia, Gorilla, Testable, ...
+    validations:
+      required: true
+
+  - type: input
+    id: api-docs
+    attributes:
+      label: API documentation
+      description: A link to the platform's REST API documentation.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: auth
+    attributes:
+      label: Authentication
+      description: How the API authenticates a request.
+      options:
+        - Bearer token, as in JATOS
+        - API key in a header or query parameter
+        - Username and password / session cookie
+        - OAuth
+        - Something else, described below
+    validations:
+      required: true
+
+  - type: textarea
+    id: differences
+    attributes:
+      label: Where it differs from JATOS
+      description: >-
+        What the platform calls a study, a batch and a result; whether results are downloaded as a zip; anything that the jatosr structure does not fit.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: maintenance
+    attributes:
+      label: Maintenance
+      options:
+        - label: I intend to build and maintain this package myself.
+          required: false

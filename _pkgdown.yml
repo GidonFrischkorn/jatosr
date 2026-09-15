@@ -1,0 +1,74 @@
+url: https://www.gfrischkorn.org/jatosr/
+template:
+  bootstrap: 5
+
+reference:
+- title: Credentials and connection
+  desc: Store the API token in the credential store of the operating system, find out where a token is coming from, and check it against the server.
+  contents:
+  - jatos_connection
+  - jatos_set_credentials
+  - jatos_remove_credentials
+  - jatos_credentials_sitrep
+  - jatos_has_credentials
+  - jatos_list_profiles
+  - jatos_token_info
+- title: Study structure
+  desc: Studies, components, batches and groups the token can see.
+  contents:
+  - jatos_studies
+  - jatos_study
+  - jatos_components
+  - jatos_batches
+  - jatos_batch
+  - jatos_groups
+  - jatos_study_log
+- title: Result metadata
+  desc: One row per component result from the server or a local cache; one row per study result on request; filters and the URL query parameters as columns.
+  contents:
+  - jatos_results_metadata
+  - jatos_flatten_metadata
+  - jatos_study_results
+  - jatos_filter_metadata
+  - jatos_url_query
+  - jatos_read_metadata
+  - jatos_cache_status
+- title: Result download, reading and export
+  desc: Fetch result files into a local cache incrementally, pull single fields out of them, read jsPsych JSON into one tibble with the metadata joined, and save it; or do all of that in one call.
+  contents:
+  - jatos_export_results
+  - jatos_download_results
+  - jatos_extract_fields
+  - jatos_read_json
+  - jatos_read_results
+  - jatos_write_results
+  - jatos_write_raw
+- title: Uploaded files, archives and import
+  desc: Files participants uploaded during a run, fetched with the same incremental rule; the study archive (`.jzip`) that reproduces the experiment; the results archive as the server builds it; and the import of such a zip into a cache.
+  contents:
+  - jatos_result_files
+  - jatos_download_files
+  - jatos_export_study
+  - jatos_export_archive
+  - jatos_import_results
+- title: Study codes
+  desc: Generate, inspect, activate and deactivate study codes, and build the run URLs participants open.
+  contents:
+  - jatos_create_study_codes
+  - jatos_study_code
+  - jatos_activate_study_code
+  - jatos_study_links
+- title: Package
+  contents:
+  - jatosr-package
+
+articles:
+- title: Get started
+  navbar: ~
+  contents:
+  - jatosr
+  - credentials
+- title: For developers
+  navbar: ~
+  contents:
+  - developer-notes

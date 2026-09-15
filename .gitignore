@@ -1,0 +1,25 @@
+# Credentials: never commit
+.Renviron
+*.token
+
+# R session artefacts
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# testthat's record of the last failing run
+tests/testthat/_problems/
+tests/testthat/testthat-problems.rds
+
+# Built documentation site and vignette build artefacts
+docs/
+inst/doc/
+/doc/
+/Meta/
+
+# Untracked local material (rigor artefacts, scratch)
+local/
+
+# macOS
+.DS_Store

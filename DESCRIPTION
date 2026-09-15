@@ -1,0 +1,46 @@
+Package: jatosr
+Title: Download and Manage 'JATOS' Study Data
+Version: 0.1.0
+Authors@R:
+    person("Gidon T.", "Frischkorn", , "gfrischkorn@icloud.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-5055-9764"))
+Description: A client for the REST API of 'JATOS' (Just Another Tool for
+    Online Studies, <https://www.jatos.org>). API tokens are kept in the
+    credential store of the operating system through the 'keyring' package,
+    and read from environment variables where a platform supplies them, so
+    that they never appear in scripts. Functions list studies, batches and
+    components, retrieve result metadata, download result data and uploaded
+    files incrementally into a local cache, import a results archive, read
+    'jsPsych' JSON result files into one data frame with the run's metadata
+    joined, save it as rds, csv, tsv, parquet or RData together with a
+    provenance record, and generate study codes. The 'JATOS' retrieval
+    workflow is modelled on the 'smartr' package by Chenyu Li.
+License: MIT + file LICENSE
+URL: https://github.com/GidonFrischkorn/jatosr, https://www.gfrischkorn.org/jatosr/
+BugReports: https://github.com/GidonFrischkorn/jatosr/issues
+Depends:
+    R (>= 4.1.0)
+Imports:
+    askpass,
+    cli,
+    httr2 (>= 1.2.0),
+    jsonlite,
+    keyring (>= 1.4.0),
+    purrr,
+    rlang,
+    tibble,
+    tools,
+    utils
+Suggests:
+    arrow,
+    knitr,
+    rmarkdown,
+    spelling,
+    testthat (>= 3.0.0),
+    withr
+Language: en-GB
+Config/testthat/edition: 3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+VignetteBuilder: knitr
+Config/roxygen2/version: 8.1.0

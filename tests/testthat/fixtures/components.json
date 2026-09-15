@@ -1,0 +1,7 @@
+{
+  "apiVersion": "1.1.0",
+  "data": [
+    {"id": 131, "uuid": "c000-131", "title": "Consent", "htmlFilePath": "consent.html", "reloadable": true, "active": true},
+    {"id": 132, "uuid": "c000-132", "title": "Demographics", "htmlFilePath": "demo.html", "reloadable": false, "active": true}
+  ]
+}

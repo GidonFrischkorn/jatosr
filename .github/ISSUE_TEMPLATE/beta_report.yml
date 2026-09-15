@@ -1,0 +1,73 @@
+name: Beta test report
+description: "One tester, one machine: what worked and what did not before the CRAN release."
+title: "Beta: <operating system>, <credential store>"
+labels: ["beta"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing. The checklist is in the pinned "Beta test" issue. Use your own studies, and only the functions listed there: none of them changes anything on the server.
+
+        **This page is public.** Never paste an API token. Replace the host of the lab server with `https://jatos.example.org`, and leave out usernames, study titles, study or batch ids and file paths that contain your name. Never paste participant data or a result file; describe its shape instead (for example "412 rows, the `rt` column is character"). If a token appeared anywhere it should not, revoke it in JATOS first and report it privately (see the security policy), not here.
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux with a desktop session
+        - Linux without a desktop session (server, container, SSH)
+    validations:
+      required: true
+
+  - type: textarea
+    id: self-check
+    attributes:
+      label: Credential store self-check
+      description: >-
+        The summary block at the end of `source("https://raw.githubusercontent.com/GidonFrischkorn/jatosr/main/data-raw/check-keyring.R")`. It holds no host, path or token.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: sitrep
+    attributes:
+      label: Credential report
+      description: The output of `jatos_credentials_sitrep()` after you stored your own token, with the host replaced.
+      render: text
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: sections
+    attributes:
+      label: Checklist sections that worked
+      description: Tick a section only if every call in it did what its documentation says. Leave it unticked and describe it below otherwise.
+      options:
+        - label: Install and self-check
+        - label: Credentials (store, restart, connect, list, sitrep)
+        - label: Study structure
+        - label: Result metadata and cache status
+        - label: Download (first run, rerun, after new sessions, by ids, uploaded files, archive and import)
+        - label: Reading and export
+        - label: Removing a test profile
+
+  - type: textarea
+    id: problems
+    attributes:
+      label: What did not work, or surprised you
+      description: >-
+        One paragraph per problem: the call, what you expected, what happened, and the full message with anything private replaced. Unclear documentation and confusing messages count too.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: The report contains no API token, no private host, no username, no study title or id, and no participant data.
+          required: true
