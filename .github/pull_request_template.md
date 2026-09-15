@@ -6,6 +6,7 @@
 
 ## Checks run in this branch
 
+- [ ] The pull request targets `develop`, or `main` from a `release/` or `hotfix/` branch
 - [ ] `devtools::document()`, and the regenerated `NAMESPACE` and `man/` are committed
 - [ ] `devtools::test()` passes
 - [ ] `devtools::check()` passes with 0 errors, 0 warnings, 0 notes

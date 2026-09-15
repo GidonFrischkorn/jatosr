@@ -17,30 +17,139 @@ revoke it in the JATOS user interface.
 
 ## Branches and pull requests
 
-`main` is protected. Nothing is pushed to it directly: every change, the
-maintainer's included, arrives through a pull request from a branch.
+Two branches are long-lived and protected, and nothing is pushed to either
+directly:
+
+- **`main`** is what is on CRAN. It changes only when a release or a hotfix
+  is merged into it.
+- **`develop`** is the default branch: reviewed work that is not on CRAN
+  yet. `pak::pak("GidonFrischkorn/jatosr")` installs this version.
+
+Everything else is a short-lived branch that arrives through a pull request:
+
+| Branch | Cut from | Pull request into | Merged by |
+| --- | --- | --- | --- |
+| `feat/*`, `fix/*`, `docs/*`, `test/*`, `chore/*`, `refactor/*` | `develop` | `develop` | squash |
+| `release/X.Y.Z` | `develop` | `main` | merge commit |
+| `hotfix/X.Y.Z` | `main` | `main` | merge commit |
+| `sync/vX.Y.Z` | `develop` (then merge `main` in) | `develop` | merge commit |
+
+Squash merges keep `develop` at one commit per unit of work. Merge commits
+are used wherever `main` and `develop` meet, so that `develop` always
+contains `main`: a squashed or rebased release or sync copies the changes
+without the commits, and every later release then conflicts. The
+`branch-policy` check rejects a pull request into `main` from any other kind
+of branch, and a pull request whose source is `main` or `develop` itself.
 
 ```sh
-git switch -c fix-metadata-columns   # one branch per issue
+git switch -c fix/metadata-columns origin/develop   # one branch per issue
 # work, commit
-git push -u origin fix-metadata-columns
-gh pr create --fill
+git push -u origin fix/metadata-columns
+gh pr create --base develop --fill
 ```
 
-A pull request is merged when
+A pull request is merged when the required checks pass on a branch that is
+up to date with its target, every review thread is resolved, and the
+checklist in the pull request template is ticked or the unticked boxes are
+explained. Merged branches are deleted automatically.
 
-- the five required `R-CMD-check` jobs pass (macOS, Windows, and Ubuntu
-  on R devel, release and oldrel-1); the sixth job, Ubuntu on R 4.1, and
-  `test-coverage` and `pkgdown` are not required,
-- one approving review is on it, and every review thread is resolved,
-- the checklist in the pull request template is ticked or the unticked
-  boxes are explained.
+### Who can merge
 
-A review is required for every pull request, so a contributor's branch
-waits for the maintainer. GitHub does not let anyone approve their own pull
-request; the maintainer merges his own branches through the repository
-admin bypass, once the checks are green. Merged branches are deleted
-automatically.
+Each protected branch has two rulesets in `.github/rulesets/`:
+
+- a **gate** (`main-gate.json`, `develop-gate.json`): pull request required,
+  required checks passing on an up-to-date branch, review threads resolved,
+  the allowed merge method, no force-push, no deletion. Nobody can bypass
+  it.
+- a **review** (`main-review.json`, `develop-review.json`): one approving
+  review, from a code owner (`.github/CODEOWNERS`).
+
+GitHub does not let anyone approve their own pull request, so while the
+package has a single developer, the maintainer merges their own branches by
+bypassing the review ruleset, which the repository-admin role may do on a
+pull request and nowhere else. The gate still applies to that merge. A
+contributor's pull request waits for the maintainer's approval.
+
+### Checks that must pass
+
+Six checks gate a merge into `main` or `develop`:
+
+| Check | What it covers |
+| --- | --- |
+| `ubuntu-latest (release)` | `R CMD check` on the reference platform |
+| `macos-latest (release)` | `R CMD check` on macOS |
+| `windows-latest (release)` | `R CMD check` on Windows |
+| `ubuntu-latest (4.1)` | `R CMD check` on the minimum R in `Depends` |
+| `test-coverage` | the suite under `covr` |
+| `branch-policy` | the pull request's source branch may merge into its target |
+
+The `ubuntu-latest (devel)` and `ubuntu-latest (oldrel-1)` jobs and
+`pkgdown` run on every pull request but do not block a merge. A failure on
+R devel is worth an issue, and is often not caused by anything in this
+package.
+
+**If you rename a job or a matrix entry that is a required check, update
+`.github/rulesets/main-gate.json` and `develop-gate.json` in the same pull
+request**, and run `.github/apply-repo-protection.sh` after the merge.
+Required checks are matched by name, for `R CMD check` in the form
+`os (r)`. A renamed check that the rulesets still require never reports,
+and every later pull request waits for it.
+
+## Releasing
+
+A release moves `develop` onto `main` and CRAN. The maintainer runs these
+steps.
+
+1. **Cut the release branch.** `git switch -c release/X.Y.Z origin/develop`,
+   then `usethis::use_version()` to set `X.Y.Z` and the `NEWS.md` heading.
+   Update `cran-comments.md`. Run `data-raw/check-keyring.R` on each
+   operating system, `devtools::check(remote = TRUE, manual = TRUE)`,
+   `devtools::check_win_devel()` and `rhub::rhub_check()` on the branch.
+2. **Merge into `main`.** Open a pull request from `release/X.Y.Z` into
+   `main` and merge it with a merge commit once the checks pass. The
+   pkgdown site is deployed from `main`, so it now shows the release.
+3. **Submit.** Locally, with `main` identical to `origin/main`:
+   `devtools::submit_cran()`. It writes `CRAN-SUBMISSION` with the submitted
+   commit; leave that file uncommitted, since `main` only takes merges.
+4. **If CRAN asks for changes**, cut `hotfix/X.Y.Z` from `main`, fix, merge
+   the pull request into `main` with a merge commit, and submit again from
+   `main`.
+5. **On acceptance**, with `main` still identical to `origin/main`:
+   `usethis::use_github_release()`. It tags `vX.Y.Z` at the commit recorded
+   in `CRAN-SUBMISSION`, publishes the GitHub release, and deletes the file.
+6. **Bring `main` back into `develop`.**
+
+   ```sh
+   git switch -c sync/vX.Y.Z origin/develop
+   git merge --no-ff origin/main
+   ```
+
+   Resolve conflicts in `DESCRIPTION` to `main`'s version, run
+   `usethis::use_dev_version()` so the version reads `X.Y.Z.9000`, check
+   that `NEWS.md` starts with a single `# jatosr (development version)`
+   heading, and commit. Open a pull request into `develop` and merge it with
+   a **merge commit**. If it is squashed by mistake, the `sync-ancestry`
+   workflow fails on the merge; repeat this step with a new `sync/` branch.
+
+A hotfix follows steps 4 to 6: merge into `main`, submit, release, sync.
+Tags matching `v*` cannot be moved or deleted
+(`.github/rulesets/release-tags.json`).
+
+### When a required check is broken
+
+If a required check fails for reasons outside the package (a runner image,
+a CRAN mirror) and a merge cannot wait for it to be fixed or re-run, a
+repository admin sets the gate ruleset's enforcement to *Disabled* in
+Settings → Rules, merges, and sets it back to *Active* straight away. Say in
+the pull request that this was done and why.
+
+### Repository administration
+
+`.github/rulesets/` holds the branch and tag protection as JSON, and
+`.github/apply-repo-protection.sh` applies it, together with the merge
+settings and the default branch, so the remote configuration is reviewable
+in a diff rather than only in Settings. Run the script after changing a
+ruleset file; `--dry-run` shows what would change.
 
 ## Development cycle
 

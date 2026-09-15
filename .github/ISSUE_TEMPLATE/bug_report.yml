@@ -74,5 +74,5 @@ body:
         - label: The report contains no API token, no private host, no username, no study title and no participant data.
           required: true
         - label: >-
-            I checked that the same call also fails on the current `main` of this repository, or I am reporting against a released version and said which.
+            I checked that the same call also fails on the current `develop` branch of this repository, or I am reporting against a released version and said which.
           required: false

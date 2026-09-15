@@ -1,0 +1,9 @@
+# Every change requests a review from the package maintainer.
+#
+# This becomes a gate rather than a courtesy once someone other than the
+# maintainer opens pull requests: the review rulesets on main and develop
+# (.github/rulesets/*-review.json) require a code owner's approval. Add
+# further owners here as the package gains developers, ideally scoped to the
+# paths they know.
+
+* @GidonFrischkorn
