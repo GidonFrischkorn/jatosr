@@ -164,7 +164,10 @@ check_metadata <- function(x,
                            call = rlang::caller_env()) {
   if (!is.data.frame(x)) {
     cli::cli_abort(
-      "{.arg {arg}} must be a data frame of result metadata, as returned by {.fn jatos_results_metadata}.",
+      c(
+        "{.arg {arg}} must be a data frame of result metadata, as returned by {.fn jatos_results_metadata}.",
+        "i" = "A parsed {.code /results/metadata} answer becomes that tibble with {.fn jatos_flatten_metadata}."
+      ),
       call = call,
       class = "jatosr_bad_metadata"
     )
