@@ -10,8 +10,9 @@ jatos_flatten_metadata(metadata)
 \item{metadata}{The metadata as the server sent it, not yet a tibble: a
 parsed answer (the whole envelope or its \code{data} element) as returned by
 \code{jsonlite::read_json(simplifyVector = FALSE)}, or the path of a
-\code{metadata.json} file. A flat metadata tibble is refused: it is what this
-function returns, and every other metadata function takes it as it is.}
+\code{metadata.json} file. A data frame is refused, the flat metadata tibble
+included: that tibble is what this function returns, and every other
+metadata function takes it as it is.}
 }
 \value{
 A tibble with, per study: \code{study_id}, \code{study_uuid}, \code{study_title};
