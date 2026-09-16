@@ -1,0 +1,38 @@
+# Checks a pull request's source branch against its target, following the
+# branch model in CONTRIBUTING.md. The job name `branch-policy` is a
+# required check in .github/rulesets/main-gate.json and develop-gate.json;
+# renaming the job means updating both in the same pull request.
+on:
+  pull_request:
+    branches: [main, develop]
+    # `edited` re-runs the check when a pull request is retargeted.
+    types: [opened, edited, reopened, synchronize]
+
+name: branch-policy.yaml
+
+permissions:
+  contents: read
+
+jobs:
+  branch-policy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # The sync/ branch of the policy compares against origin/main. Fetching
+      # it here states that dependency in the workflow rather than relying on
+      # what fetch-depth: 0 happens to bring along.
+      - name: Fetch main
+        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+
+      - name: Check the source branch against the target
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/branch-policy.sh "$BASE_REF" "$HEAD_REF" "$HEAD_REPO" "$REPO" "$HEAD_SHA"

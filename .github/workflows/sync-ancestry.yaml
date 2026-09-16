@@ -1,0 +1,40 @@
+# After a sync/ branch is merged into develop, confirms that develop now
+# contains main. A sync merged by squash or rebase copies main's changes
+# without its commits, and from then on every release pull request is out of
+# date and conflicts on DESCRIPTION and NEWS.md. The ruleset cannot tie a merge
+# method to a branch name, so this reports the mistake instead of preventing
+# it. Not a required check: it runs after the merge.
+on:
+  pull_request:
+    branches: [develop]
+    types: [closed]
+
+name: sync-ancestry.yaml
+
+permissions:
+  contents: read
+
+jobs:
+  sync-ancestry:
+    if: github.event.pull_request.merged && startsWith(github.head_ref, 'sync/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      # As in branch-policy.yaml: the comparison needs origin/main, so it is
+      # fetched explicitly.
+      - name: Fetch main
+        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+
+      - name: Check that develop contains main
+        run: |
+          if git merge-base --is-ancestor origin/main origin/develop; then
+            echo "ok: develop contains main"
+          else
+            echo "::error title=sync not merged with a merge commit::develop does not contain main. Open a new sync/ branch (git switch -c sync/fix origin/develop && git merge --no-ff origin/main) and merge it with a merge commit."
+            exit 1
+          fi

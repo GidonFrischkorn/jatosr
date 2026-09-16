@@ -21,5 +21,6 @@ appeared, is enough.
 
 ## Supported versions
 
-The `main` branch of this repository and, once there is one, the latest
-release on CRAN.
+The latest release on CRAN, which the `main` branch holds, and the
+`develop` branch, the default branch of this repository and the version
+`pak::pak("GidonFrischkorn/jatosr")` installs.

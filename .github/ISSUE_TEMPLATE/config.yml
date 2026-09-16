@@ -9,5 +9,5 @@ contact_links:
     about: >-
       The reference and the vignettes, including "developer-notes", which describes the package's internals and how to use it as a template.
   - name: Contributing guide
-    url: https://github.com/GidonFrischkorn/jatosr/blob/main/CONTRIBUTING.md
+    url: https://github.com/GidonFrischkorn/jatosr/blob/develop/CONTRIBUTING.md
     about: The development cycle and the rules a pull request has to satisfy.
