@@ -31,7 +31,11 @@ smartr package by Chenyu Li.
   can see, by id or uuid.
 * `jatos_results_metadata()` returns result metadata as a tibble with one row
   per component result, with `jatos_flatten_metadata()`, `jatos_url_query()`
-  and `jatos_study_results()` (one row per run) to reshape it.
+  and `jatos_study_results()` (one row per run) to reshape it. Handing that
+  tibble back to `jatos_flatten_metadata()`, the one metadata function that
+  takes the parsed server answer rather than the tibble, is refused by name
+  instead of failing inside the package; the refusal in the other direction
+  names `jatos_flatten_metadata()` as the way across.
 * `jatos_filter_metadata()` selects runs by state, worker type, start time and
   explicit exclusions before anything is downloaded.
 * `jatos_download_results()` and `jatos_download_files()` fetch result data and
