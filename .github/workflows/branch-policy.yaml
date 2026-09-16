@@ -1,5 +1,5 @@
 # Checks a pull request's source branch against its target, following the
-# branch model in .github/CONTRIBUTING.md. The job name `branch-policy` is a
+# branch model in CONTRIBUTING.md. The job name `branch-policy` is a
 # required check in .github/rulesets/main-gate.json and develop-gate.json;
 # renaming the job means updating both in the same pull request.
 on:
@@ -21,6 +21,12 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      # The sync/ branch of the policy compares against origin/main. Fetching
+      # it here states that dependency in the workflow rather than relying on
+      # what fetch-depth: 0 happens to bring along.
+      - name: Fetch main
+        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
 
       - name: Check the source branch against the target
         env:

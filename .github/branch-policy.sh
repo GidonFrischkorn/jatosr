@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
 # Check a pull request's source branch against the branch model in
-# .github/CONTRIBUTING.md. Run by .github/workflows/branch-policy.yaml, whose
+# CONTRIBUTING.md. Run by .github/workflows/branch-policy.yaml, whose
 # `branch-policy` job is a required check on main and develop.
 #
 #   branch-policy.sh <base> <head> <head repo> <this repo> <head sha>
 #
-# The sync/ check needs `origin/main` and the head commit in the local clone
-# (the workflow checks out with fetch-depth: 0).
+# The sync/ check needs `origin/main` and the head commit in the local clone;
+# the workflow checks out with fetch-depth: 0 and fetches main explicitly.
 
 set -euo pipefail
 
