@@ -116,7 +116,9 @@ report_metadata <- function(meta, host) {
 #' @param metadata The metadata as the server sent it, not yet a tibble: a
 #'   parsed answer (the whole envelope or its `data` element) as returned by
 #'   `jsonlite::read_json(simplifyVector = FALSE)`, or the path of a
-#'   `metadata.json` file.
+#'   `metadata.json` file. A data frame is refused, the flat metadata tibble
+#'   included: that tibble is what this function returns, and every other
+#'   metadata function takes it as it is.
 #'
 #' @return A tibble with, per study: `study_id`, `study_uuid`, `study_title`;
 #'   per study result: `study_result_id`, `study_result_uuid`, `study_code`,
@@ -151,6 +153,21 @@ metadata_studies <- function(metadata, call = rlang::caller_env()) {
   if (rlang::is_string(metadata)) {
     check_path_exists(metadata, call = call)
     metadata <- jsonlite::read_json(metadata, simplifyVector = FALSE)
+  }
+  # A data frame is a list, so it passes the guard below and is then mapped
+  # over column by column: an atomic first column errors inside purrr, and a
+  # frame of list columns returns zero rows in silence. This is the flat
+  # tibble arriving where the parsed answer belongs, the mirror image of what
+  # check_metadata() refuses, so name the confusion instead.
+  if (is.data.frame(metadata)) {
+    cli::cli_abort(
+      c(
+        "{.arg metadata} must be a parsed {.code /results/metadata} answer or the path of a metadata.json file, not a data frame.",
+        "i" = "The flat tibble is what {.fn jatos_flatten_metadata} returns: the one from {.fn jatos_results_metadata} or {.fn jatos_read_metadata} needs no flattening, and every other metadata function takes it as it is."
+      ),
+      call = call,
+      class = "jatosr_bad_metadata"
+    )
   }
   if (!is.list(metadata)) {
     cli::cli_abort(

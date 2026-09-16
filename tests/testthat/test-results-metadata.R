@@ -73,6 +73,40 @@ test_that("jatos_flatten_metadata accepts a parsed envelope, its data list, and 
   expect_error(jatos_flatten_metadata("/no/such/file.json"), "does not exist", class = "jatosr_bad_argument")
 })
 
+test_that("jatos_flatten_metadata refuses a data frame and says what produces the tibble", {
+  from_path <- jatos_flatten_metadata(fixture_path("metadata.json"))
+
+  # The message wraps at the console width, so the phrases are matched across
+  # a possible line break.
+  err <- expect_error(jatos_flatten_metadata(from_path), "not a data\\s+frame", class = "jatosr_bad_metadata")
+  expect_match(conditionMessage(err), "jatos_results_metadata")
+  expect_match(conditionMessage(err), "jatos_read_metadata")
+
+  # A plain data frame, and one carrying none of the metadata columns: a data
+  # frame is a list, so every one of them used to reach metadata_rows().
+  expect_error(jatos_flatten_metadata(as.data.frame(from_path)), "not a data\\s+frame", class = "jatosr_bad_metadata")
+  expect_error(jatos_flatten_metadata(data.frame(a = 1)), "not a data\\s+frame", class = "jatosr_bad_metadata")
+  # A frame of nothing but list columns returned zero rows in silence.
+  list_cols <- data.frame(i = 1)
+  list_cols$files <- list(list())
+  expect_error(jatos_flatten_metadata(list_cols["files"]), "not a data\\s+frame", class = "jatosr_bad_metadata")
+
+  # Control: the documented inputs still flatten to the same six rows.
+  parsed <- read_fixture_json("metadata.json")
+  expect_equal(jatos_flatten_metadata(parsed), from_path)
+  expect_equal(jatos_flatten_metadata(parsed$data), from_path)
+  expect_equal(nrow(from_path), 6L)
+})
+
+test_that("check_metadata names jatos_flatten_metadata when given a parsed answer", {
+  err <- expect_error(
+    check_metadata(read_fixture_json("metadata.json")),
+    "data frame",
+    class = "jatosr_bad_metadata"
+  )
+  expect_match(conditionMessage(err), "jatos_flatten_metadata")
+})
+
 test_that("jatos_flatten_metadata with no results returns zero rows with every column", {
   empty <- jatos_flatten_metadata(list(apiVersion = "1.1.0", data = list()))
   expect_equal(nrow(empty), 0)
