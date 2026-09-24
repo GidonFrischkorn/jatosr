@@ -230,7 +230,8 @@ repair_json_names <- function(names) {
 #'   not a trial column. `NULL` joins the id columns only. Ignored when
 #'   `metadata` is a character vector.
 #' @param reader `NULL` for [jatos_read_json()], or a function of one file
-#'   path returning a data frame with one row per trial.
+#'   path returning a data frame with one row per trial. PsychoJS, for
+#'   instance, writes csv: `reader = function(file) utils::read.csv(file)`.
 #' @param on_error `"abort"` stops at the first file the reader cannot read.
 #'   `"skip"` leaves such files out, reads the rest, and warns once with
 #'   the files and the first error; a clash between trial and metadata
@@ -261,9 +262,6 @@ repair_json_names <- function(names) {
 #' # one tibble per component
 #' parts <- jatos_read_results(meta, split = "component")
 #' names(parts)
-#'
-#' # PsychoJS writes csv, read with a reader of your own:
-#' # trials <- jatos_read_results(meta, reader = function(file) utils::read.csv(file))
 jatos_read_results <- function(metadata,
                                ...,
                                flatten = FALSE,

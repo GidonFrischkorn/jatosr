@@ -198,6 +198,14 @@ not the generated files. Every user-facing change gets a bullet in
   stringr or tidyr in `Imports`.
 - Metadata is a plain tibble with a column-name contract, one row per
   component result; functions check it with `check_metadata()` at entry.
+- CRAN's reviewers enforce rules that `R CMD check` does not: no triple
+  colon anywhere, not even on the help page of an unexported function; no
+  examples for unexported functions; a `\value` on every exported page; no
+  commented-out code in examples; a reason in every `\dontrun{}`.
+  `tests/testthat/test-cran-policy.R` checks these and a dozen more against
+  the sources, and names the reviewer comment behind each. Keep internals
+  off the help pages with `@noRd` rather than showing how to reach them. The
+  file is self-contained and can be copied into other packages.
 
 ## Sibling packages
 

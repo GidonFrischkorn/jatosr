@@ -95,11 +95,11 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Gidon T. Frischkorn \email{gfrischkorn@icloud.com} (\href{https://orcid.org/0000-0002-5055-9764}{ORCID})
+\strong{Maintainer}: Gidon T. Frischkorn \email{gfrischkorn@icloud.com} (\href{https://orcid.org/0000-0002-5055-9764}{ORCID}) [copyright holder]
 
 Authors:
 \itemize{
-  \item Gidon T. Frischkorn \email{gfrischkorn@icloud.com} (\href{https://orcid.org/0000-0002-5055-9764}{ORCID})
+  \item Gidon T. Frischkorn \email{gfrischkorn@icloud.com} (\href{https://orcid.org/0000-0002-5055-9764}{ORCID}) [copyright holder]
 }
 
 }

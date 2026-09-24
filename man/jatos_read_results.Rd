@@ -37,7 +37,8 @@ not a trial column. \code{NULL} joins the id columns only. Ignored when
 \code{metadata} is a character vector.}
 
 \item{reader}{\code{NULL} for \code{\link[=jatos_read_json]{jatos_read_json()}}, or a function of one file
-path returning a data frame with one row per trial.}
+path returning a data frame with one row per trial. PsychoJS, for
+instance, writes csv: \code{reader = function(file) utils::read.csv(file)}.}
 
 \item{on_error}{\code{"abort"} stops at the first file the reader cannot read.
 \code{"skip"} leaves such files out, reads the rest, and warns once with
@@ -109,9 +110,6 @@ trials[, c("study_result_id", "worker_id", "age", "trial_index", "rt")]
 # one tibble per component
 parts <- jatos_read_results(meta, split = "component")
 names(parts)
-
-# PsychoJS writes csv, read with a reader of your own:
-# trials <- jatos_read_results(meta, reader = function(file) utils::read.csv(file))
 }
 \seealso{
 \code{\link[=jatos_write_results]{jatos_write_results()}} to save the tibble,
