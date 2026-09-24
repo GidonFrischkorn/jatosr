@@ -2,7 +2,7 @@ Package: jatosr
 Title: Download and Manage 'JATOS' Study Data
 Version: 0.1.0
 Authors@R:
-    person("Gidon T.", "Frischkorn", , "gfrischkorn@icloud.com", role = c("aut", "cre"),
+    person("Gidon T.", "Frischkorn", , "gfrischkorn@icloud.com", role = c("aut", "cre", "cph"),
            comment = c(ORCID = "0000-0002-5055-9764"))
 Description: A client for the REST API of 'JATOS' (Just Another Tool for
     Online Studies, <https://www.jatos.org>). API tokens are kept in the

@@ -83,7 +83,8 @@ read, and in which the message shows them. \code{"UTC"} by default, the
 zone the server reports times in; \code{Sys.timezone()} for local time.}
 
 \item{reader}{\code{NULL} for \code{\link[=jatos_read_json]{jatos_read_json()}}, or a function of one file
-path returning a data frame with one row per trial.}
+path returning a data frame with one row per trial. PsychoJS, for
+instance, writes csv: \code{reader = function(file) utils::read.csv(file)}.}
 
 \item{coerce}{What to do with a column whose atomic type differs between
 files: \code{"error"} stops with the column named; \code{"character"} converts
